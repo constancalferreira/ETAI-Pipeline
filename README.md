@@ -1,5 +1,23 @@
 # Baseline Predictive Pipeline -- ETAI
 
+20260504 - Constança Ferreira
+
+## Model Performance Comparison
+
+### Logistic Regression
+* **Train Accuracy:** 0.679
+* **Test Accuracy:** 0.678
+* **Gap (Train - Test):** +0.001
+
+### Decision Trees
+* **Train Accuracy:** 0.829
+* **Test Accuracy:** 0.628
+* **Gap (Train - Test):** +0.201
+
+### Best Current Model:
+
+The best current model is **Logistic Regression** due to its superior generalization and higher test accuracy. While the Decision Tree heavily overfits the training data (a large train-test gap of +0.201), Logistic Regression maintains consistent performance with a minimal gap of +0.001 and a higher overall test accuracy.
+
 This is the **starting point** for your semester project: a small but *complete* predictive pipeline -- every piece a real project needs (entry point, config, data loading, preprocessing, model, evaluation), just kept as simple as possible for now.
 
 The task: predict two-year recidivism using ProPublica's COMPAS
