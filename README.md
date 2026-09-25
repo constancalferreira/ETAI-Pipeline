@@ -1,32 +1,7 @@
-# Baseline Predictive Pipeline -- ETAI
+# Constança Ferreira - 20260504
 
-20260504 - Constança Ferreira
-
-## Model Performance Comparison
-
-### Logistic Regression
-* **Train Accuracy:** 0.679
-* **Test Accuracy:** 0.678
-* **Gap (Train - Test):** +0.001
-
-### Decision Trees
-* **Train Accuracy:** 0.829
-* **Test Accuracy:** 0.628
-* **Gap (Train - Test):** +0.201
-
-### Best Current Model:
-
-The best current model is **Logistic Regression** due to its superior generalization and higher test accuracy. While the Decision Tree heavily overfits the training data (a large train-test gap of +0.201), Logistic Regression maintains consistent performance with a minimal gap of +0.001 and a higher overall test accuracy.
-
-This is the **starting point** for your semester project: a small but *complete* predictive pipeline -- every piece a real project needs (entry point, config, data loading, preprocessing, model, evaluation), just kept as simple as possible for now.
-
-The task: predict two-year recidivism using ProPublica's COMPAS
-dataset -- the data behind a real 2016 investigation into a risk-
-assessment algorithm actually used by US courts to help inform bail and sentencing decisions. See `data/README.md` for the full problem description and a complete data dictionary before you start.
-
-It has some **deliberately weak spots**. Part of your work this
-semester is finding them and making them better -- see the pipeline progress table below, which tracks what changes and why as the weeks
-go on.
+## Overview
+This repository hosts the progressive development of an end-to-end predictive pipeline structured for the Exploratory Topics in Artificial Intelligence (ETAI) course. The primary objective is to predict two-year criminal recidivism (two_year_recid) using historical and demographic data of defendants from the COMPAS dataset, which is the real dataset investigated by ProPublica in 2016 to audit risk-assessment algorithms used in US courts.
 
 ## Project structure
 
@@ -51,9 +26,28 @@ go on.
 
 This table is updated after each practical class, so you can always see what changed in the pipeline and why -- it's a running log, not a fixed syllabus.
 
-| Week | Practical class focus | Added to the pipeline |
+| Week | Focus | Added to the pipeline |
 |------|------------------------|------------------------|
 | 2 | Introduction & baseline pipeline | Initial version: project structure, a single naive train/test split (no cross-validation), minimal preprocessing (drop rows with missing values, one-hot encode categoricals), logistic regression baseline, a first (deliberately simple) fairness check comparing our model's and COMPAS's own false-positive rate by race, train-vs-test accuracy reporting (to start spotting overfitting), and each run's full report saved automatically to `results/` |
+| **3** | EDA Diagnostics & Preprocessing | Transition to **Evidence-Based Diagnostics**: statistical missingness tests (Chi-square and Cramér's V), domain rule validation, rigorous duplicate detection, and multicollinearity analysis. Implementation of a robust cleaning recipe, smart imputation with binary indicators for MNAR columns (`_was_missing`), and integration of a data-leakage-proof `ColumnTransformer`. |
+
+
+## Best Model
+
+### Logistic Regression
+* **Train Accuracy:** 0.679
+* **Test Accuracy:** 0.678
+* **Gap (Train - Test):** +0.001
+
+### Decision Trees
+* **Train Accuracy:** 0.829
+* **Test Accuracy:** 0.628
+* **Gap (Train - Test):** +0.201
+
+### Conclusion:
+
+The best current model is **Logistic Regression** due to its superior generalization and higher test accuracy. While the Decision Tree heavily overfits the training data (a large train-test gap of +0.201), Logistic Regression maintains consistent performance with a minimal gap of +0.001 and a higher overall test accuracy.
+
 
 ## Environment setup
 
