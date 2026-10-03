@@ -1,91 +1,106 @@
-import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
-from src.data_diagnostics import flag_invalid_values
-from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder, StandardScaler, MinMaxScaler, RobustScaler
-from category_encoders import CountEncoder, TargetEncoder
+import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
+from sklearn.model_selection import StratifiedKFold, train_test_split
+from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder, TargetEncoder, StandardScaler, MinMaxScaler, RobustScaler
+from category_encoders import CountEncoder
 
 
-TARGET = "two_year_recid"
-SENSITIVE_ATTR = "race"
-COMPAS_OWN_SCORE = ["decile_score", "score_text"]
-DROP_ALWAYS = ["id", TARGET, SENSITIVE_ATTR] + COMPAS_OWN_SCORE
+def flag_invalid_values(df: pd.DataFrame, rules: dict) -> pd.DataFrame:
+    report_rows = []
 
-NUMERIC_FEATURES = ["age", "juv_fel_count", "juv_misd_count", "juv_other_count", "priors_count"]
-CATEGORICAL_FEATURES = ["sex", "age_cat", "c_charge_degree"]
-MNAR_INDICATOR_SOURCES = ["priors_count", "c_charge_degree"]
+    for column, bounds in rules.items():
+        if column not in df.columns:
+            continue
+
+        numeric = pd.to_numeric(df[column], errors="coerce")
+        lower_ok = numeric >= bounds["min"] if "min" in bounds else pd.Series(True, index=numeric.index)
+        upper_ok = numeric <= bounds["max"] if "max" in bounds else pd.Series(True, index=numeric.index)
+        violations = numeric.notna() & ~(lower_ok & upper_ok)
+        report_rows.append({"column": column, "rule": bounds, "violations": int(violations.sum())})
+        df.loc[violations, column] = np.nan
+
+    return pd.DataFrame(report_rows)
 
 
-def canonicalize_categories(df: pd.DataFrame, columns_and_maps: dict, placeholder_tokens: set) -> pd.DataFrame:
+def _canonicalize_categories(df: pd.DataFrame, columns_and_maps: dict, placeholder_tokens: set) -> pd.DataFrame:
     out = df.copy()
+
     for col, mapping in columns_and_maps.items():
+        if col not in out.columns:
+            continue
+
         cleaned = out[col].astype(str).str.strip()
         lowered = cleaned.str.lower()
         out[col] = lowered.map(mapping).fillna(cleaned)
         out.loc[out[col].astype(str).str.strip().isin(placeholder_tokens), col] = np.nan
+
     return out
 
 
-# category cleanup, domain-rule/placeholder -> Step 1
-def clean_dataset(df: pd.DataFrame, diagnosis: dict) -> pd.DataFrame:
+def clean_dataset(df: pd.DataFrame, diagnostics_config: dict) -> pd.DataFrame:
     out = df.copy()
-    placeholder_tokens = set(diagnosis["placeholder_tokens"])
+    placeholder_tokens = set(diagnostics_config.get("placeholder_tokens", []))
 
-    for col in ["priors_count", "prior_offenses"]:
+    for col in diagnostics_config.get("numeric_text_columns", []):
         if col in out.columns:
             out[col] = pd.to_numeric(out[col].replace(list(placeholder_tokens), np.nan), errors="coerce")
 
-    out.loc[out["age"].notna() & ~out["age"].between(18, 100), "age"] = np.nan
-    out.loc[~out["decile_score"].between(1, 10), "decile_score"] = np.nan
-    out.loc[out["juv_fel_count"].notna() & (out["juv_fel_count"] < 0), "juv_fel_count"] = np.nan
-    out.loc[out["priors_count"].notna() & ((out["priors_count"] < 0) | (out["priors_count"] > 60)), "priors_count"] = np.nan
+    flag_invalid_values(out, diagnostics_config.get("validity_rules", {}))
 
-    out = canonicalize_categories(out, diagnosis["canonical_categories"], placeholder_tokens)
+    out = _canonicalize_categories(out, diagnostics_config.get("canonical_categories", {}), placeholder_tokens)
 
-    out = out.drop_duplicates()
-    if "id" in out.columns:
-        out = out.drop_duplicates(subset="id", keep="first")
-
-    cols_to_drop = [c for c in diagnosis["redundant_columns"] if c in out.columns and c != "id"]
-    out = out.drop(columns=cols_to_drop)
+    columns_to_drop = [c for c in diagnostics_config.get("redundant_columns", []) if c in out.columns]
+    out = out.drop(columns=columns_to_drop)
 
     return out
 
-#  adds <col>_was_missing flags for the MNAR columns -> Step 3
-def add_missingness_indicators(df: pd.DataFrame) -> pd.DataFrame:
+
+def drop_duplicate_rows(df: pd.DataFrame, id_column: str = None) -> pd.DataFrame:
+    out = df.drop_duplicates()
+
+    if id_column and id_column in out.columns:
+        out = out.drop_duplicates(subset=id_column, keep="first")
+
+    return out
+
+
+def add_missingness_indicators(df: pd.DataFrame, mnar_indicator_sources: list) -> pd.DataFrame:
     out = df.copy()
 
-    for col in MNAR_INDICATOR_SOURCES:
-        out[f"{col}_was_missing"] = out[col].isna().astype(int)
+    for col in mnar_indicator_sources:
+        if col in out.columns:
+            out[f"{col}_was_missing"] = out[col].isna().astype(int)
 
     return out
 
 
-# returns (X, y, extras); y is None on label-free data -> Step 3
-def split_features_target(df: pd.DataFrame):
-    df = add_missingness_indicators(df)
-    y = df[TARGET] if TARGET in df.columns else None
+def split_features_target(df: pd.DataFrame, data_config: dict, mnar_indicator_sources: list):
+    target = data_config["target"]
+    sensitive_attr = data_config["sensitive_attr"]
+    drop_columns = data_config.get("drop_columns", [])
 
-    extras_cols = [c for c in [SENSITIVE_ATTR, "score_text"] if c in df.columns]
+    df = add_missingness_indicators(df, mnar_indicator_sources)
+    y = df[target] if target in df.columns else None
+
+    extras_cols = [c for c in [sensitive_attr, "score_text"] if c in df.columns]
     extras = df[extras_cols].copy() if extras_cols else None
 
-    feature_cols = [c for c in df.columns if c not in DROP_ALWAYS]
+    always_drop = set(drop_columns) | {target, sensitive_attr}
+    feature_cols = [c for c in df.columns if c not in always_drop]
     X = df[feature_cols]
-
     return X, y, extras
 
 _SCALERS = {"none": "passthrough", "standard": StandardScaler, "minmax": MinMaxScaler, "robust": RobustScaler}
 _ENCODERS = {
-    "onehot": lambda: OneHotEncoder(handle_unknown="ignore", sparse_output=False),
-    "ordinal": lambda: OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1),
-    "count": lambda: CountEncoder(handle_unknown=0, handle_missing=0),
-    "target": lambda: TargetEncoder(handle_unknown="value", handle_missing="value"),
+    "onehot": lambda seed: OneHotEncoder(handle_unknown="ignore", sparse_output=False),
+    "ordinal": lambda seed: OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1),
+    "count": lambda seed: CountEncoder(handle_unknown=0, handle_missing=0),
+    "target": lambda seed: TargetEncoder(target_type="binary", cv=StratifiedKFold(5, shuffle=True, random_state=seed)),
 }
 
-# the leak-safe ColumnTransformer factory -> Step 3
 def build_preprocessor(preprocessing_config: dict) -> ColumnTransformer:
     encoder_name = preprocessing_config["encoder"]
     scaler_name = preprocessing_config["scaler"]
@@ -96,7 +111,7 @@ def build_preprocessor(preprocessing_config: dict) -> ColumnTransformer:
 
     scaler_factory = _SCALERS[scaler_name]
     scaler = scaler_factory() if callable(scaler_factory) else scaler_factory
-    encoder = _ENCODERS[encoder_name]()
+    encoder = _ENCODERS[encoder_name](preprocessing_config.get("random_state"))
 
     numeric_pipeline = Pipeline([
         ("impute", SimpleImputer(strategy=imputation.get("numeric_strategy", "median"))),
@@ -116,7 +131,8 @@ def build_preprocessor(preprocessing_config: dict) -> ColumnTransformer:
     ])
 
 
-# the stratified train/test split -> Week 2 
-def split_train_test(X, y, extras, test_size: float, random_state: int):
-    X_train, X_test, y_train, y_test, extras_train, extras_test = train_test_split(X, y, extras, test_size=test_size, random_state=random_state, stratify=y)
-    return X_train, X_test, y_train, y_test, extras_train, extras_test
+def split_dev_test(X, y, extras, test_size: float, random_state: int):
+    X_dev, X_test, y_dev, y_test, extras_dev, extras_test = train_test_split(
+        X, y, extras, test_size=test_size, random_state=random_state, stratify=y
+    )
+    return X_dev, X_test, y_dev, y_test, extras_dev, extras_test

@@ -30,23 +30,21 @@ This table is updated after each practical class, so you can always see what cha
 |------|------------------------|------------------------|
 | 2 | Introduction & baseline pipeline | Initial version: project structure, a single naive train/test split (no cross-validation), minimal preprocessing (drop rows with missing values, one-hot encode categoricals), logistic regression baseline, a first (deliberately simple) fairness check comparing our model's and COMPAS's own false-positive rate by race, train-vs-test accuracy reporting (to start spotting overfitting), and each run's full report saved automatically to `results/` |
 | **3** | EDA Diagnostics & Preprocessing | Transition to **Evidence-Based Diagnostics**: statistical missingness tests (Chi-square and Cramér's V), domain rule validation, rigorous duplicate detection, and multicollinearity analysis. Implementation of a robust cleaning recipe, smart imputation with binary indicators for MNAR columns (`_was_missing`), and integration of a data-leakage-proof `ColumnTransformer`. |
+| **4** | Preprocessing & Cross-Validation | Setting aside a locked 20% test set so we can evaluate models honestly via stratified 5-fold cross-validation instead of trusting a single split. Switched to scikit-learn's cross-fitting target encoder to prevent data leakage, cleaned up categorical placeholder bugs (like `"nan"` strings), decoupled de-duplication so new inference data works smoothly, and added dummy and random forest benchmarks. |
 
 
 ## Best Model
 
-### Logistic Regression
-* **Train Accuracy:** 0.679
-* **Test Accuracy:** 0.678
-* **Gap (Train - Test):** +0.001
-
-### Decision Trees
-* **Train Accuracy:** 0.829
-* **Test Accuracy:** 0.628
-* **Gap (Train - Test):** +0.201
+| Model | CV accuracy (mean ± std) | CV train-val gap |
+|---|---|---|
+| Dummy | 0.549 ± 0.000 | +0.000 |
+| Logistic regression | 0.672 ± 0.013 | +0.003 |
+| Decision tree | 0.609 ± 0.015 | +0.086 |
+| Random forest | 0.650 ± 0.018 | +0.083 |
 
 ### Conclusion:
 
-The best current model is **Logistic Regression** due to its superior generalization and higher test accuracy. While the Decision Tree heavily overfits the training data (a large train-test gap of +0.201), Logistic Regression maintains consistent performance with a minimal gap of +0.001 and a higher overall test accuracy.
+The validation scores from 5-fold cross-validation provide a much more honest and trustworthy estimate of out-of-sample performance than single train/test splits. Under cross-validation, **Logistic Regression** remains the best model, achieving a mean validation accuracy of **0.672 ± 0.013** with an exceptionally tight train-validation gap of **+0.003**. In contrast, models like the Decision Tree and Random Forest exhibit noticeable overfitting with larger gaps (+0.086 and +0.083, respectively) and lower overall validation accuracy than Logistic Regression.
 
 
 ## Environment setup
