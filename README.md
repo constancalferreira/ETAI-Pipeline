@@ -35,16 +35,21 @@ This table is updated after each practical class, so you can always see what cha
 
 ## Best Model
 
-| Model | CV accuracy (mean ± std) | CV train-val gap |
-|---|---|---|
-| Dummy | 0.549 ± 0.000 | +0.000 |
-| Logistic regression | 0.672 ± 0.013 | +0.003 |
-| Decision tree | 0.609 ± 0.015 | +0.086 |
-| Random forest | 0.650 ± 0.018 | +0.083 |
+| Model | Default: CV mean ± std (gap) | Tuned: nested CV mean ± std (gap) | Tuning score (best trial) | Chosen hyperparameters |
+|---|---|---|---|---|
+| Logistic regression | 0.672 ± 0.013 (+0.003) | — | — | — |
+| Decision tree | 0.610 ± 0.018 (+0.085) | 0.672 ± 0.017 (+0.013)  | 0.679 | {'model__max_depth': 6, 'model__min_samples_leaf': 101, 'model__criterion': 'gini'}|
+| Random forest | 0.650 ± 0.019 (+0.082)  | 0.681 ± 0.015 (+0.009) | 0.683 | {'model__max_depth': 22, 'model__min_samples_leaf': 42, 'model__max_features': 0.5} |
+| Oblique random forest | 0.647 ± 0.011 (+0.114) | 0.679 ± 0.013 (+0.013) | 0.683 | {'model__estimator__tree__max_depth': 6, 'model__estimator__tree__min_samples_leaf': 3, 'model__estimator__project__n_components': 5} |
+| AdaBoost | 0.676 ± 0.012 (+0.006) | 0.682 ± 0.017 (+0.004) | 0.684 | {'model__estimator__max_depth': 4, 'model__n_estimators': 220, 'model__learning_rate': 0.025081156860452335} |
 
 ### Conclusion:
 
-The validation scores from 5-fold cross-validation provide a much more honest and trustworthy estimate of out-of-sample performance than single train/test splits. Under cross-validation, **Logistic Regression** remains the best model, achieving a mean validation accuracy of **0.672 ± 0.013** with an exceptionally tight train-validation gap of **+0.003**. In contrast, models like the Decision Tree and Random Forest exhibit noticeable overfitting with larger gaps (+0.086 and +0.083, respectively) and lower overall validation accuracy than Logistic Regression.
+AdaBoost achieves the highest honest validation accuracy at 0.682, closely followed by Random Forest at 0.681.  The performance lead of AdaBoost over Random Forest is 0.001. Because this lead is vastly smaller than the fold-to-fold standard deviation (0.017), the difference is insignificant. For all practical purposes, AdaBoost and Random Forest tie.
+
+The optimized hyperparameters align well with model theory: AdaBoost balanced complex feature interactions by combining a tree slightly deeper than usual (max_depth=4) with a small learning rate (0.025) and 220 estimators, while Random Forest relied on low-bias, deeper trees whose variance is safely managed through leaf constraints (min_samples_leaf=42) and feature subsampling (max_features=0.5).
+
+Ultimately, I would report AdaBoost's honest nested cross-validation accuracy of 0.682 (± 0.017) as my final result because nested cross-validation provides an honest evaluation that prevents data leakage and tuning optimism, giving me a reliable estimate of how my pipeline will generalize.
 
 
 ## Environment setup
