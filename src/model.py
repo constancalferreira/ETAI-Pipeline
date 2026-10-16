@@ -7,6 +7,12 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.pipeline import Pipeline
 from src.preprocessing import build_preprocessor
 
+def adaboost_lr(max_iter: int = 2000, **params):
+    return AdaBoostClassifier(
+        estimator=LogisticRegression(max_iter=max_iter),
+        **params
+    )
+
 def adaboost(max_depth: int = 1, **params):
     """
     AdaBoost over decision trees of depth `max_depth` (1 = stumps); `params` go to
@@ -37,6 +43,7 @@ _MODELS = {
     "random_forest": RandomForestClassifier,
     "oblique_random_forest": oblique_random_forest,
     "adaboost": adaboost,
+    "adaboost_lr": adaboost_lr
 }
 
 

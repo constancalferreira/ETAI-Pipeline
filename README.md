@@ -54,6 +54,7 @@ This table is updated after each practical class, so you can always see what cha
 | 2 | Introduction & baseline pipeline | Initial version: project structure, a single naive train/test split (no cross-validation), minimal preprocessing (drop rows with missing values, one-hot encode categoricals), logistic regression baseline, a first (deliberately simple) fairness check comparing our model's and COMPAS's own false-positive rate by race, train-vs-test accuracy reporting (to start spotting overfitting), and each run's full report saved automatically to `results/` |
 | **3** | EDA Diagnostics & Preprocessing | Transition to **Evidence-Based Diagnostics**: statistical missingness tests (Chi-square and Cramér's V), domain rule validation, rigorous duplicate detection, and multicollinearity analysis. Implementation of a robust cleaning recipe, smart imputation with binary indicators for MNAR columns (`_was_missing`), and integration of a data-leakage-proof `ColumnTransformer`. |
 | **4** | Preprocessing & Cross-Validation | Setting aside a locked 20% test set so we can evaluate models honestly via stratified 5-fold cross-validation instead of trusting a single split. Switched to scikit-learn's cross-fitting target encoder to prevent data leakage, cleaned up categorical placeholder bugs (like `"nan"` strings), decoupled de-duplication so new inference data works smoothly, and added dummy and random forest benchmarks. |
+| **5** | Ensembles & Hyperparameter Tuning | Implementation and hyperparameter tuning of ensemble architectures (Decision Trees, Random Forest, Oblique Random Forest and AdaBoost) via nested cross-validation (5 outer folds, 30 Optuna inner trials). Implemented and evaluated custom feature engineering and non-tree base estimator boosting. |
 
 
 ## Best Model
@@ -96,6 +97,16 @@ All three features rely entirely on deterministic arithmetic and fixed threshold
 * Logistic Regression saw a slight positive shift ($+0.003$), while tree-based models showed negligible or slightly negative performance deltas ($[-0.005, -0.001]$).
 * All performance deltas ($0.001$ to $0.005$) are substantially smaller than the fold-to-fold standard deviation ($\sim 0.012$), meaning the variations are statistically insignificant.
 * **Conclusion:** Tree models use axis-parallel splits that can implicitly approximate these sums and ratios from raw features (`priors_count`, `juv_fel_count`, `age`), while Logistic Regression natively handles linear combinations. Explicitly engineering them introduced feature redundancy rather than new predictive boundaries.
+
+## AdaBoost with Logistic Regression
+
+Wrapping Logistic Regression in AdaBoost yielded a slight performance drop, performing worse than a standalone linear model and lagging behind Standard AdaBoost. A weighted sum of linear functions remains strictly linear, collapsing into a single equivalent model without the non-linear partitioning power of decision trees.
+
+| Model Architecture |CV Validation Accuracy | Fold Std |
+| :--- | :--- | :--- |
+| **Standard Logistic Regression** | **0.675** | $\sim 0.013$ |
+| **Boosted Logistic Regression** | **0.670** | $\sim 0.007$ |
+| **Standard AdaBoost** | **0.681** | $\sim 0.012$ |
 
 ## Environment setup
 
