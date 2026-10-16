@@ -8,6 +8,29 @@ from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder, TargetEncoder, 
 from category_encoders import CountEncoder
 
 
+def add_engineered_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Adds complementary features for COMPAS recidivism prediction:
+    1. Total Contacts (Volume of legal interactions)
+    2. Felony Concentration (Proportion of total record that are juvenile felonies)
+    3. Prior Offences per Adult Years 
+    """
+    out = df.copy()
+    
+    total_contacts = (
+        out["priors_count"].fillna(0) +
+        out["juv_fel_count"].fillna(0) +
+        out["juv_misd_count"].fillna(0) +
+        out["juv_other_count"].fillna(0)
+    )
+    out["total_contacts"] = total_contacts
+    
+    out["felony_concentration"] = out["juv_fel_count"].fillna(0) / (total_contacts + 1)
+
+    out["priors_per_adult_year"] = out["priors_count"] / (out["age"] - 17).clip(lower=1)
+    
+    return out
+
 def flag_invalid_values(df: pd.DataFrame, rules: dict) -> pd.DataFrame:
     report_rows = []
 

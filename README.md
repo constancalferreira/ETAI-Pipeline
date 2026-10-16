@@ -3,6 +3,29 @@
 ## Overview
 This repository hosts the progressive development of an end-to-end predictive pipeline structured for the Exploratory Topics in Artificial Intelligence (ETAI) course. The primary objective is to predict two-year criminal recidivism (two_year_recid) using historical and demographic data of defendants from the COMPAS dataset, which is the real dataset investigated by ProPublica in 2016 to audit risk-assessment algorithms used in US courts.
 
+## Dataset Variables
+
+The table below outlines each variable in the COMPAS dataset, its role in the pipeline, its meaning, and how it is handled during data cleaning and preprocessing.
+
+| Variable Name | Role in Pipeline | Description | Preprocessing Insights |
+| :--- | :--- | :--- | :--- |
+| **`two_year_recid`** | Target ($y$) | Binary indicator of whether the individual reoffended within two years ($1 = \text{Yes}, 0 = \text{No}$). | Used as the primary target label for all classification models and metric calculations. |
+| **`id`** | Dropped (`drop_columns`) | Unique row/individual identifier. | Excluded from features (`drop_columns`) to prevent models from memorizing row IDs. |
+| **`decile_score`** | Dropped (`drop_columns`) | COMPAS proprietary risk score decile (1 to 10). | Excluded from features (`drop_columns`) because it is COMPAS's own proprietary score; retained only for external fairness audits (false positive rate comparisons). |
+| **`score_text`** | Dropped (`drop_columns`) | Risk category text ("Low", "Medium", "High"). | Excluded from features (`drop_columns`) and utilized strictly as a baseline benchmark in the fairness report to evaluate COMPAS's own predictions. |
+| **`race`** | Sensitive Attribute | Demographic racial category of the individual (e.g., African-American, Caucasian, Hispanic, Asian, Native American, Other). | **Never used as a feature** (`sensitive_attr`). Designated exclusively for calculating group-level False Positive Rates in the fairness audit. |
+| **`sex`** | Categorical Feature | Biological sex of the individual (Male, Female). | Canonicalized to standard capitalised spellings ("Male", "Female")|
+| **`age_cat`** | Categorical Feature | Age bracket grouping (e.g., Less than 25, 25-45, Greater than 45). | Treated as a categorical feature, mapped, and encoded within the column transformer pipeline. |
+| **`c_charge_degree`** | Categorical Feature | Degree of the current criminal charge (F = Felony, M = Misdemeanor). | Canonicalized via diagnostic rules, treated as a source for missingness flags (`c_charge_degree_was_missing`), and encoded. |
+| **`age`** | Numeric Feature | Age of the individual in years. | Bounded by domain validity rules ($18 \le \text{age} \le 100$); handled via median imputation and robust scaling. |
+| **`priors_count`** | Numeric Feature | Number of prior offenses recorded for the individual. | Cleaned from text tokens, bounded ($0 \le \text{priors\_count} \le 60$), triggered missingness indicator flags (`priors_count_was_missing`), and scaled. |
+| **`juv_fel_count`** | Numeric Feature | Count of juvenile felony charges. | Validated against domain rules ($\ge 0$); imputed and scaled as a numeric feature. |
+| **`juv_misd_count`** | Numeric Feature | Count of juvenile misdemeanor charges. | Imputed and scaled as part of the standard numeric feature set. |
+| **`juv_other_count`** | Numeric Feature | Count of other miscellaneous juvenile charges. | Imputed and scaled as part of the numeric feature set. |
+| **`prior_offenses`** | Redundant (`drop_columns`) | Legacy duplicate/redundant column tracking prior offenses. | Dropped automatically during `clean_dataset()` based on `diagnostic_config["redundant_columns"]`. |
+| **`age_in_months`** | Redundant (`drop_columns`) | Age expressed in months. | Dropped automatically as a redundant column during dataset cleaning. |
+| **`juvenile_total`** | Redundant (`drop_columns`) | Aggregated total of juvenile offenses. | Dropped automatically as a redundant column to prevent multicollinearity with individual juvenile counts. |
+
 ## Project structure
 
 ```
@@ -51,6 +74,28 @@ The optimized hyperparameters align well with model theory: AdaBoost balanced co
 
 Ultimately, I would report AdaBoost's honest nested cross-validation accuracy of 0.682 (± 0.017) as my final result because nested cross-validation provides an honest evaluation that prevents data leakage and tuning optimism, giving me a reliable estimate of how my pipeline will generalize.
 
+## Feature Engineering
+Three engineered features were implemented:
+* **`total_contacts`**: Total lifetime interactions (`priors_count + juv_fel_count + juv_misd_count + juv_other_count`).
+* **`felony_concentration`**: Proportion of juvenile felonies relative to total contacts.
+* **`priors_per_adult_year`**: Adult criminal velocity (`priors_count / (age - 17)`).
+
+All three features rely entirely on deterministic arithmetic and fixed thresholds with zero parameters learned from training labels, making them completely free of data leakage and safe to compute before splitting.
+
+### Results
+
+| Model Family | Baseline Nested CV Accuracy | Enhanced Nested CV Accuracy | Delta | Fold Std |
+| :--- | :--- | :--- | :--- | :--- |
+| **Logistic Regression** | 0.672 | **0.675** | $+0.003$ | $\sim 0.013$ |
+| **Random Forest** | 0.681 | **0.676** | $-0.005$ | $\sim 0.012$ |
+| **AdaBoost** | 0.682 | **0.681** | $-0.001$ | $\sim 0.012$ |
+| **Decision Tree** | 0.672 | **0.673** | $+0.001$ | $\sim 0.010$ |
+
+---
+
+* Logistic Regression saw a slight positive shift ($+0.003$), while tree-based models showed negligible or slightly negative performance deltas ($[-0.005, -0.001]$).
+* All performance deltas ($0.001$ to $0.005$) are substantially smaller than the fold-to-fold standard deviation ($\sim 0.012$), meaning the variations are statistically insignificant.
+* **Conclusion:** Tree models use axis-parallel splits that can implicitly approximate these sums and ratios from raw features (`priors_count`, `juv_fel_count`, `age`), while Logistic Regression natively handles linear combinations. Explicitly engineering them introduced feature redundancy rather than new predictive boundaries.
 
 ## Environment setup
 

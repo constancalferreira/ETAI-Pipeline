@@ -7,7 +7,7 @@ from sklearn.pipeline import Pipeline
 
 from src.data import load_data
 from src.preprocessing import (
-    clean_dataset, drop_duplicate_rows, split_features_target, build_preprocessor, split_dev_test,
+    add_engineered_features, clean_dataset, drop_duplicate_rows, split_features_target, build_preprocessor, split_dev_test,
 )
 from src.model import (build_model, build_pipeline)
 from src.evaluate import (
@@ -28,6 +28,8 @@ def main():
     df_raw = load_data(config["data"]["path"])
     df_clean = clean_dataset(df_raw, config["diagnostics"])
     df_clean = drop_duplicate_rows(df_clean, config["diagnostics"].get("id_column"))
+
+    df_clean = add_engineered_features(df_clean)
 
     mnar_sources = config["preprocessing"].get("mnar_indicator_sources", [])
     X, y, extras = split_features_target(df_clean, config["data"], mnar_sources)
