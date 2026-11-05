@@ -66,9 +66,7 @@ preprocessing:
 
 model:
   type: "hist_gradient_boosting"     # dummy | logistic_regression | decision_tree | random_forest | oblique_random_forest | adaboost | naive_bayes | gradient_boosting | hist_gradient_boosting
-  params:
-    random_state: 42
-    class_weight: balanced
+  params: {random_state: 42, class_weight: balanced}
   # Other models' params, to swap in:
   # decision_tree:          {random_state: 42, class_weight: balanced}
   # logistic_regression:    {max_iter: 2000, class_weight: balanced}
@@ -80,7 +78,7 @@ model:
   # hist_gradient_boosting: {random_state: 42, class_weight: balanced}
 
 tuning:
-  enabled: false
+  enabled: true
   n_trials: 30
   n_splits: 5
   random_state: 42

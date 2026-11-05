@@ -55,25 +55,9 @@ This table is updated after each practical class, so you can always see what cha
 | **3** | EDA Diagnostics & Preprocessing | Transition to **Evidence-Based Diagnostics**: statistical missingness tests (Chi-square and Cramér's V), domain rule validation, rigorous duplicate detection, and multicollinearity analysis. Implementation of a robust cleaning recipe, smart imputation with binary indicators for MNAR columns (`_was_missing`), and integration of a data-leakage-proof `ColumnTransformer`. |
 | **4** | Preprocessing & Cross-Validation | Setting aside a locked 20% test set so we can evaluate models honestly via stratified 5-fold cross-validation instead of trusting a single split. Switched to scikit-learn's cross-fitting target encoder to prevent data leakage, cleaned up categorical placeholder bugs (like `"nan"` strings), decoupled de-duplication so new inference data works smoothly, and added dummy and random forest benchmarks. |
 | **5** | Ensembles & Hyperparameter Tuning | Implementation and hyperparameter tuning of ensemble architectures (Decision Trees, Random Forest, Oblique Random Forest and AdaBoost) via nested cross-validation (5 outer folds, 30 Optuna inner trials). Implemented and evaluated custom feature engineering and non-tree base estimator boosting. |
+| **7** | Evaluation Metrics & Scoreboard | Probability tracking, multi-metric evaluation, threshold-free ranking via ROC-AUC, class weighting analysis, corrected paired t-tests, and automated scoreboard logging. |
 
-
-## Best Model
-
-| Model | Default: CV mean ± std (gap) | Tuned: nested CV mean ± std (gap) | Tuning score (best trial) | Chosen hyperparameters |
-|---|---|---|---|---|
-| Logistic regression | 0.672 ± 0.013 (+0.003) | — | — | — |
-| Decision tree | 0.610 ± 0.018 (+0.085) | 0.672 ± 0.017 (+0.013)  | 0.679 | {'model__max_depth': 6, 'model__min_samples_leaf': 101, 'model__criterion': 'gini'}|
-| Random forest | 0.650 ± 0.019 (+0.082)  | 0.681 ± 0.015 (+0.009) | 0.683 | {'model__max_depth': 22, 'model__min_samples_leaf': 42, 'model__max_features': 0.5} |
-| Oblique random forest | 0.647 ± 0.011 (+0.114) | 0.679 ± 0.013 (+0.013) | 0.683 | {'model__estimator__tree__max_depth': 6, 'model__estimator__tree__min_samples_leaf': 3, 'model__estimator__project__n_components': 5} |
-| AdaBoost | 0.676 ± 0.012 (+0.006) | 0.682 ± 0.017 (+0.004) | 0.684 | {'model__estimator__max_depth': 4, 'model__n_estimators': 220, 'model__learning_rate': 0.025081156860452335} |
-
-### Conclusion:
-
-AdaBoost achieves the highest honest validation accuracy at 0.682, closely followed by Random Forest at 0.681.  The performance lead of AdaBoost over Random Forest is 0.001. Because this lead is vastly smaller than the fold-to-fold standard deviation (0.017), the difference is insignificant. For all practical purposes, AdaBoost and Random Forest tie.
-
-The optimized hyperparameters align well with model theory: AdaBoost balanced complex feature interactions by combining a tree slightly deeper than usual (max_depth=4) with a small learning rate (0.025) and 220 estimators, while Random Forest relied on low-bias, deeper trees whose variance is safely managed through leaf constraints (min_samples_leaf=42) and feature subsampling (max_features=0.5).
-
-Ultimately, I would report AdaBoost's honest nested cross-validation accuracy of 0.682 (± 0.017) as my final result because nested cross-validation provides an honest evaluation that prevents data leakage and tuning optimism, giving me a reliable estimate of how my pipeline will generalize.
+---
 
 ## Feature Engineering
 Three engineered features were implemented:
@@ -83,30 +67,32 @@ Three engineered features were implemented:
 
 All three features rely entirely on deterministic arithmetic and fixed thresholds with zero parameters learned from training labels, making them completely free of data leakage and safe to compute before splitting.
 
-### Results
+## Selection Metric
+**ROC-AUC** was chosen as the primary selection metric because COMPAS functions fundamentally as a risk-scoring and ranking tool rather than an immediate hard decision-maker. By evaluating the model's ordering quality across every possible threshold simultaneously, ROC-AUC avoids locking the pipeline into a subjective 0.5 classification cutoff prematurely, leaving threshold optimization as a separate downstream decision.
 
-| Model Family | Baseline Nested CV Accuracy | Enhanced Nested CV Accuracy | Delta | Fold Std |
-| :--- | :--- | :--- | :--- | :--- |
-| **Logistic Regression** | 0.672 | **0.675** | $+0.003$ | $\sim 0.013$ |
-| **Random Forest** | 0.681 | **0.676** | $-0.005$ | $\sim 0.012$ |
-| **AdaBoost** | 0.682 | **0.681** | $-0.001$ | $\sim 0.012$ |
-| **Decision Tree** | 0.672 | **0.673** | $+0.001$ | $\sim 0.010$ |
+## Scoreboard
+
+| Model | Tuned | Encoder | Scaler | Mean | Std | Untuned Score | Floor (Dummy) |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Dummy** | False | target | robust | **0.500** | 0.000 | 0.500 | 0.500 |
+| **Logistic Regression** | False | target | robust | **0.723** | 0.013 | 0.723 | 0.500 |
+| **Decision Tree** | True | target | robust | **0.717** | 0.011 | 0.587 | 0.500 |
+| **Random Forest** | True | target | robust | **0.726** | 0.013 | 0.684 | 0.500 |
+| **Oblique Random Forest** | True | target | robust | **0.726** | 0.013 | 0.680 | 0.500 |
+| **AdaBoost** | True | target | robust | **0.726** | 0.014 | 0.722 | 0.500 |
+| **Naive Bayes** | True | target | robust | **0.714** | 0.010 | 0.701 | 0.500 |
+| **Gradient Boosting** | True | target | robust | **0.727** | 0.014 | 0.726 | 0.500 |
+| **Hist. Gradient Boosting** | True | target | robust | **0.726** | 0.014 | 0.713 | 0.500 |
 
 ---
 
-* Logistic Regression saw a slight positive shift ($+0.003$), while tree-based models showed negligible or slightly negative performance deltas ($[-0.005, -0.001]$).
-* All performance deltas ($0.001$ to $0.005$) are substantially smaller than the fold-to-fold standard deviation ($\sim 0.012$), meaning the variations are statistically insignificant.
-* **Conclusion:** Tree models use axis-parallel splits that can implicitly approximate these sums and ratios from raw features (`priors_count`, `juv_fel_count`, `age`), while Logistic Regression natively handles linear combinations. Explicitly engineering them introduced feature redundancy rather than new predictive boundaries.
+## Conclusion
 
-## AdaBoost with Logistic Regression
+Gradient Boosting achieves the highest honest validation accuracy at 0.727, closely followed by a four-way tie between Random Forest, Oblique Random Forest, AdaBoost, and Hist. Gradient Boosting at 0.726. Because Gradient Boosting's lead of +0.001 over these models is much smaller than the fold-to-fold standard deviation (0.014), the difference is statistically negligible; for all practical purposes, all top-performing ensemble architectures tie.
 
-Wrapping Logistic Regression in AdaBoost yielded a slight performance drop, performing worse than a standalone linear model and lagging behind Standard AdaBoost. A weighted sum of linear functions remains strictly linear, collapsing into a single equivalent model without the non-linear partitioning power of decision trees.
+The optimized hyperparameters align well with model theory: tree-based ensembles converged on robust regularization to prevent overfitting on noisy tabular data, relying on shallow depths and smart subsampling constraints. 
 
-| Model Architecture |CV Validation Accuracy | Fold Std |
-| :--- | :--- | :--- |
-| **Standard Logistic Regression** | **0.675** | $\sim 0.013$ |
-| **Boosted Logistic Regression** | **0.670** | $\sim 0.007$ |
-| **Standard AdaBoost** | **0.681** | $\sim 0.012$ |
+Ultimately, I would report Gradient Boosting's honest nested cross-validation accuracy of **0.727 (± 0.014)** as my final result because nested cross-validation provides an honest evaluation that prevents data leakage and tuning optimism, giving me a reliable estimate of how my pipeline will generalize.
 
 ## Environment setup
 
