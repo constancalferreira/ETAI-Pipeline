@@ -56,6 +56,7 @@ This table is updated after each practical class, so you can always see what cha
 | **4** | Preprocessing & Cross-Validation | Setting aside a locked 20% test set so we can evaluate models honestly via stratified 5-fold cross-validation instead of trusting a single split. Switched to scikit-learn's cross-fitting target encoder to prevent data leakage, cleaned up categorical placeholder bugs (like `"nan"` strings), decoupled de-duplication so new inference data works smoothly, and added dummy and random forest benchmarks. |
 | **5** | Ensembles & Hyperparameter Tuning | Implementation and hyperparameter tuning of ensemble architectures (Decision Trees, Random Forest, Oblique Random Forest and AdaBoost) via nested cross-validation (5 outer folds, 30 Optuna inner trials). Implemented and evaluated custom feature engineering and non-tree base estimator boosting. |
 | **7** | Evaluation Metrics & Scoreboard | Probability tracking, multi-metric evaluation, threshold-free ranking via ROC-AUC, class weighting analysis, corrected paired t-tests, and automated scoreboard logging. |
+| **8** | XGBoost & Feature Selection | Integrated XGBoost with its internal split brakes (gamma, reg_alpha, etc.), built a leakage-proof VoteSelector pipeline step with temporary caching for fast tuning, and evaluated feature reduction against noise. |
 
 ---
 
@@ -70,25 +71,36 @@ All three features rely entirely on deterministic arithmetic and fixed threshold
 ## Selection Metric
 **ROC-AUC** was chosen as the primary selection metric because COMPAS functions fundamentally as a risk-scoring and ranking tool rather than an immediate hard decision-maker. By evaluating the model's ordering quality across every possible threshold simultaneously, ROC-AUC avoids locking the pipeline into a subjective 0.5 classification cutoff prematurely, leaving threshold optimization as a separate downstream decision.
 
-### Scoreboard
+## Feature Selection
+To test whether removing redundant or noisy columns helps or hurts performance, we evaluated our tuned XGBoost pipeline both with and without the `VoteSelector` step.
 
-Model | Tuned | Encoder | Scaler | ROC-AUC | Std | Untuned | Floor |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-gradient_boosting | True | target | robust | **0.727** | 0.014 | 0.726 | 0.500 |
-oblique_random_forest | True | target | robust | **0.726** | 0.013 | 0.680 | 0.500 |
-adaboost | True | target | robust | **0.726** | 0.014 | 0.722 | 0.500 |
-random_forest | True | target | robust | **0.726** | 0.013 | 0.684 | 0.500 |
-hist_gradient_boosting | True | target | robust | **0.726** | 0.014 | 0.713 | 0.500 |
-logistic_regression | False | target | robust | **0.723** | 0.013 | 0.723 | 0.500 |
-xgboost | False | target | robust | **0.722** | 0.015 | 0.722 | 0.500 |
-decision_tree | True | target | robust | **0.717** | 0.011 | 0.587 | 0.500 |
-naive_bayes | True | target | robust | **0.714** | 0.010 | 0.701 | 0.500 |
-hist_gradient_boosting | False | target | robust | **0.713** | 0.016 | 0.713 | 0.500 |
-dummy | False | target | robust | **0.500** | 0.000 | 0.500 | 0.500 |
+* **XGBoost without Feature Selection (All 13 features):** Mean ROC-AUC = **0.728 ± 0.013**
+* **XGBoost with Feature Selection (`min_votes: 1`):** Mean ROC-AUC = **0.726 ± 0.011**
+* **Features Kept (4 of 13):** `numeric__age`, `numeric__priors_count`, `numeric__total_contacts`, and `numeric__priors_per_adult_year`.
+
+The smaller model (retaining only 4 key features) performs nearly identically to the full model, yielding a negligible ROC-AUC difference of just -0.002 that is well within the fold standard deviation. This shows that tree-based gradient boosting is robust to minor feature redundancy, as the core signal is heavily concentrated in age and criminal history metrics. While I would likely keep feature selection disabled or lightly tuned for final deployment to keep the pipeline simple and avoid over-filtering, the voting selector proves it can aggressively strip away uninformative variables without sacrificing predictive power.
+
+## Scoreboard
+
+| Model | Tuned | Feature Selection | ROC-AUC | Std | Untuned | Floor |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| xgboost | True | off | **0.728** | 0.013 | 0.722 | 0.500 |
+| gradient_boosting | True | NaN | **0.727** | 0.014 | 0.726 | 0.500 |
+| oblique_random_forest | True | NaN | **0.726** | 0.013 | 0.680 | 0.500 |
+| adaboost | True | NaN | **0.726** | 0.014 | 0.722 | 0.500 |
+| xgboost | True | min_votes 1 | **0.726** | 0.011 | 0.720 | 0.500 |
+| random_forest | True | NaN | **0.726** | 0.013 | 0.684 | 0.500 |
+| hist_gradient_boosting | True | NaN | **0.726** | 0.014 | 0.713 | 0.500 |
+| logistic_regression | False | NaN | **0.723** | 0.013 | 0.723 | 0.500 |
+| xgboost | False | NaN | **0.722** | 0.015 | 0.722 | 0.500 |
+| xgboost | False | min_votes 2 | **0.720** | 0.014 | 0.720 | 0.500 |
+| decision_tree | True | NaN | **0.717** | 0.011 | 0.587 | 0.500 |
+| naive_bayes | True | NaN | **0.714** | 0.010 | 0.701 | 0.500 |
+| hist_gradient_boosting | False | NaN | **0.713** | 0.016 | 0.713 | 0.500 |
+| dummy | False | NaN | **0.500** | 0.000 | 0.500 | 0.500 |
 ---
 
 ## Conclusion
-
 Gradient Boosting achieves the highest honest validation accuracy at 0.727, closely followed by a four-way tie between Random Forest, Oblique Random Forest, AdaBoost, and Hist. Gradient Boosting at 0.726. Because Gradient Boosting's lead of +0.001 over these models is much smaller than the fold-to-fold standard deviation (0.014), the difference is statistically negligible; for all practical purposes, all top-performing ensemble architectures tie.
 
 The optimized hyperparameters align well with model theory: tree-based ensembles converged on robust regularization to prevent overfitting on noisy tabular data, relying on shallow depths and smart subsampling constraints. 
