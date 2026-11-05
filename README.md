@@ -70,20 +70,21 @@ All three features rely entirely on deterministic arithmetic and fixed threshold
 ## Selection Metric
 **ROC-AUC** was chosen as the primary selection metric because COMPAS functions fundamentally as a risk-scoring and ranking tool rather than an immediate hard decision-maker. By evaluating the model's ordering quality across every possible threshold simultaneously, ROC-AUC avoids locking the pipeline into a subjective 0.5 classification cutoff prematurely, leaving threshold optimization as a separate downstream decision.
 
-## Scoreboard
+### Scoreboard
 
-| Model | Tuned | Encoder | Scaler | Mean | Std | Untuned Score | Floor (Dummy) |
+Model | Tuned | Encoder | Scaler | ROC-AUC | Std | Untuned | Floor |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Dummy** | False | target | robust | **0.500** | 0.000 | 0.500 | 0.500 |
-| **Logistic Regression** | False | target | robust | **0.723** | 0.013 | 0.723 | 0.500 |
-| **Decision Tree** | True | target | robust | **0.717** | 0.011 | 0.587 | 0.500 |
-| **Random Forest** | True | target | robust | **0.726** | 0.013 | 0.684 | 0.500 |
-| **Oblique Random Forest** | True | target | robust | **0.726** | 0.013 | 0.680 | 0.500 |
-| **AdaBoost** | True | target | robust | **0.726** | 0.014 | 0.722 | 0.500 |
-| **Naive Bayes** | True | target | robust | **0.714** | 0.010 | 0.701 | 0.500 |
-| **Gradient Boosting** | True | target | robust | **0.727** | 0.014 | 0.726 | 0.500 |
-| **Hist. Gradient Boosting** | True | target | robust | **0.726** | 0.014 | 0.713 | 0.500 |
-
+gradient_boosting | True | target | robust | **0.727** | 0.014 | 0.726 | 0.500 |
+oblique_random_forest | True | target | robust | **0.726** | 0.013 | 0.680 | 0.500 |
+adaboost | True | target | robust | **0.726** | 0.014 | 0.722 | 0.500 |
+random_forest | True | target | robust | **0.726** | 0.013 | 0.684 | 0.500 |
+hist_gradient_boosting | True | target | robust | **0.726** | 0.014 | 0.713 | 0.500 |
+logistic_regression | False | target | robust | **0.723** | 0.013 | 0.723 | 0.500 |
+xgboost | False | target | robust | **0.722** | 0.015 | 0.722 | 0.500 |
+decision_tree | True | target | robust | **0.717** | 0.011 | 0.587 | 0.500 |
+naive_bayes | True | target | robust | **0.714** | 0.010 | 0.701 | 0.500 |
+hist_gradient_boosting | False | target | robust | **0.713** | 0.016 | 0.713 | 0.500 |
+dummy | False | target | robust | **0.500** | 0.000 | 0.500 | 0.500 |
 ---
 
 ## Conclusion

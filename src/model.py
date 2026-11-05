@@ -10,6 +10,7 @@ from sklearn.ensemble import (
 )
 from sklearn.naive_bayes import GaussianNB
 from src.preprocessing import build_preprocessor
+from xgboost import XGBClassifier
 
 def adaboost_lr(max_iter: int = 2000, **params):
     return AdaBoostClassifier(
@@ -51,6 +52,7 @@ _MODELS = {
     "gradient_boosting": GradientBoostingClassifier,
     "hist_gradient_boosting": HistGradientBoostingClassifier,
     "naive_bayes": GaussianNB,
+    "xgboost": XGBClassifier,
 }
 
 
