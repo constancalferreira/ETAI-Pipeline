@@ -126,6 +126,13 @@ tuning:
       model__reg_alpha: {type: float, low: 0.001, high: 10.0, log: true}
       model__gamma: {type: float, low: 0.0, high: 5.0}
 
+feature_selection:
+  enabled: true
+  min_votes: 2
+  random_state: 42
+  search_space:
+    select__min_votes: {type: int, low: 1, high: 3}
+
 output:
   results_dir: "results"
   scoreboard: "results/runs.csv"
