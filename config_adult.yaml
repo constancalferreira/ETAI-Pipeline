@@ -56,7 +56,6 @@ preprocessing:
     - "occupation"
     - "relationship"
     - "race"
-    - "sex"
     - "native_country"
     - "v19"
     - "v20"
