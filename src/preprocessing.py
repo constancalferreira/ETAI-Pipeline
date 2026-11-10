@@ -16,19 +16,19 @@ def add_engineered_features(df: pd.DataFrame) -> pd.DataFrame:
     3. Prior Offences per Adult Years 
     """
     out = df.copy()
+    required_cols = ["priors_count", "juv_fel_count", "juv_misd_count", "juv_other_count"]
     
-    total_contacts = (
-        out["priors_count"].fillna(0) +
-        out["juv_fel_count"].fillna(0) +
-        out["juv_misd_count"].fillna(0) +
-        out["juv_other_count"].fillna(0)
-    )
-    out["total_contacts"] = total_contacts
-    
-    out["felony_concentration"] = out["juv_fel_count"].fillna(0) / (total_contacts + 1)
-
-    out["priors_per_adult_year"] = out["priors_count"] / (out["age"] - 17).clip(lower=1)
-    
+    if all(col in out.columns for col in required_cols):
+        total_contacts = (
+            out["priors_count"].fillna(0) +
+            out["juv_fel_count"].fillna(0) +
+            out["juv_misd_count"].fillna(0) +
+            out["juv_other_count"].fillna(0)
+        )
+        out["total_contacts"] = total_contacts
+        out["felony_concentration"] = out["juv_fel_count"].fillna(0) / (total_contacts + 1)
+        out["priors_per_adult_year"] = out["priors_count"] / (out["age"] - 17).clip(lower=1)
+        
     return out
 
 def flag_invalid_values(df: pd.DataFrame, rules: dict) -> pd.DataFrame:
