@@ -57,6 +57,7 @@ This table is updated after each practical class, so you can always see what cha
 | **5** | Ensembles & Hyperparameter Tuning | Implementation and hyperparameter tuning of ensemble architectures (Decision Trees, Random Forest, Oblique Random Forest and AdaBoost) via nested cross-validation (5 outer folds, 30 Optuna inner trials). Implemented and evaluated custom feature engineering and non-tree base estimator boosting. |
 | **7** | Evaluation Metrics & Scoreboard | Probability tracking, multi-metric evaluation, threshold-free ranking via ROC-AUC, class weighting analysis, corrected paired t-tests, and automated scoreboard logging. |
 | **8** | XGBoost & Feature Selection | Integrated XGBoost with its internal split brakes (gamma, reg_alpha, etc.), built a leakage-proof VoteSelector pipeline step with temporary caching for fast tuning, and evaluated feature reduction against noise. |
+| **9** | Generalizing Beyond COMPAS (Adult Income) | Refactored data loading and fairness audits to be completely dataset-agnostic, stripping out hardcoded variables. Introduced separate YAML configs (config_adult.yaml) to test modularity, and compared models results. |
 
 ---
 
@@ -80,7 +81,7 @@ To test whether removing redundant or noisy columns helps or hurts performance, 
 
 The smaller model (retaining only 4 key features) performs nearly identically to the full model, yielding a negligible ROC-AUC difference of just -0.002 that is well within the fold standard deviation. This shows that tree-based gradient boosting is robust to minor feature redundancy, as the core signal is heavily concentrated in age and criminal history metrics. While I would likely keep feature selection disabled or lightly tuned for final deployment to keep the pipeline simple and avoid over-filtering, the voting selector proves it can aggressively strip away uninformative variables without sacrificing predictive power.
 
-## Scoreboard
+## COMPAS Scoreboard
 
 | Model | Tuned | Feature Selection | ROC-AUC | Std | Untuned | Floor |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -106,6 +107,39 @@ Gradient Boosting achieves the highest honest validation accuracy at 0.727, clos
 The optimized hyperparameters align well with model theory: tree-based ensembles converged on robust regularization to prevent overfitting on noisy tabular data, relying on shallow depths and smart subsampling constraints. 
 
 Ultimately, I would report Gradient Boosting's honest nested cross-validation accuracy of **0.727 (± 0.014)** as my final result because nested cross-validation provides an honest evaluation that prevents data leakage and tuning optimism, giving me a reliable estimate of how my pipeline will generalize.
+
+## Beyond COMPAS 
+
+To test pipeline modularity and robustness, migration from the COMPAS recidivism domain to the Adult Income census dataset was performed. Execution of the pipeline is handled directly via python main.py config_adult.yaml. Dataset migration exposed several hardcoded assumptions tied specifically to crime records, such as missing feature engineering columns like priors_count, which was resolved by adding safety checks to skip domain-specific features if absent. Additionally, sex was chosen as the sensitive attribute over other demographic options to audit well-documented socio-economic and gender-based wage gaps in income prediction. To implement this, sex was excluded from predictive features to keep the model blind while retaining it in metadata for fairness audits, and COMPAS-specific risk scores were made optional in evaluation scripts.
+
+### Results Table 
+| Model | Tuned | Feature Selection | ROC-AUC | Std | Untuned | Floor |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **xgboost** | **False** | **min_votes 2** | **0.911** | **0.014** | **0.911** | **0.500** |
+| gradient_boosting | False | min_votes 2 | 0.911 | 0.015 | 0.911 | 0.500 |
+| xgboost | True | min_votes 1 | 0.909 | 0.014 | 0.911 | 0.500 |
+| gradient_boosting | False | off | 0.908 | 0.015 | 0.908 | 0.500 |
+| hist_gradient_boosting | False | min_votes 2 | 0.906 | 0.015 | 0.906 | 0.500 |
+| xgboost | False | off | 0.906 | 0.017 | 0.906 | 0.500 |
+| random_forest | True | min_votes 1 | 0.905 | 0.014 | 0.894 | 0.500 |
+| xgboost | False | off | 0.905 | 0.016 | 0.905 | 0.500 |
+| adaboost | False | min_votes 2 | 0.903 | 0.016 | 0.903 | 0.500 |
+| random_forest | False | off | 0.899 | 0.017 | 0.899 | 0.500 |
+| hist_gradient_boosting | False | off | 0.898 | 0.015 | 0.898 | 0.500 |
+| adaboost | False | off | 0.898 | 0.014 | 0.898 | 0.500 |
+| logistic_regression | False | min_votes 2 | 0.896 | 0.014 | 0.896 | 0.500 |
+| logistic_regression | False | off | 0.895 | 0.013 | 0.895 | 0.500 |
+| oblique_random_forest | False | min_votes 2 | 0.892 | 0.018 | 0.892 | 0.500 |
+| random_forest | False | min_votes 2 | 0.891 | 0.018 | 0.891 | 0.500 |
+| decision_tree | True | min_votes 2 | 0.881 | 0.019 | 0.730 | 0.500 |
+| naive_bayes | False | min_votes 2 | 0.875 | 0.014 | 0.875 | 0.500 |
+| naive_bayes | False | off | 0.865 | 0.008 | 0.865 | 0.500 |
+| oblique_random_forest | False | off | 0.859 | 0.009 | 0.859 | 0.500 |
+| decision_tree | False | min_votes 2 | 0.731 | 0.023 | 0.731 | 0.500 |
+| decision_tree | False | off | 0.721 | 0.028 | 0.721 | 0.500 |
+
+### Conclusion
+Gradient boosting and XGBoost outperformed all other models, easily beating the baseline (ROC-AUC = 0.500). The highest performance came from XGBoost with feature selection, reaching a validation ROC-AUC of 0.911 (0.014). Full hyperparameter tuning yielded a nearly identical 0.909, confirming that default parameters with noise reduction were already optimal. Using VoteSelector successfully dropped noise from the 25 anonymized columns (v01–v25), keeping only 8 key features: age, education_num, capital_gain, capital_loss, hours_per_week, marital_status, occupation, and relationship.
 
 ## Environment setup
 
