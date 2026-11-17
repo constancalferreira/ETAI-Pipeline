@@ -139,3 +139,4 @@ feature_selection:
 output:
   results_dir: "results"
   scoreboard: "results/runs.csv"
+  model_path: "models/model.joblib"

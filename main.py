@@ -1,7 +1,9 @@
 from datetime import datetime
+import os
 import shutil
 import tempfile
 import time
+import joblib
 import optuna
 import sys
 
@@ -150,6 +152,11 @@ def main():
     shutil.rmtree(cache_dir, ignore_errors=True)
     path = save_run(config.get("output", {}).get("results_dir", "results"), run, config, report)
     print(f"\n{refit}\nFull report (per-fold tables, tuning, confusion matrix, fairness): {path}")
+
+    model_path = config.get("output", {}).get("model_path", "models/model.joblib")
+    os.makedirs(os.path.dirname(model_path) or ".", exist_ok=True)
+    pipeline.set_params(memory=None)                # the cache folder was deleted; the saved model doesn't need it
+    joblib.dump(pipeline, model_path)
 
 
 if __name__ == "__main__":

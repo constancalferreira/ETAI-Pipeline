@@ -58,6 +58,7 @@ This table is updated after each practical class, so you can always see what cha
 | **7** | Evaluation Metrics & Scoreboard | Probability tracking, multi-metric evaluation, threshold-free ranking via ROC-AUC, class weighting analysis, corrected paired t-tests, and automated scoreboard logging. |
 | **8** | XGBoost & Feature Selection | Integrated XGBoost with its internal split brakes (gamma, reg_alpha, etc.), built a leakage-proof VoteSelector pipeline step with temporary caching for fast tuning, and evaluated feature reduction against noise. |
 | **9** | Generalizing Beyond COMPAS (Adult Income) | Refactored data loading and fairness audits to be completely dataset-agnostic, stripping out hardcoded variables. Introduced separate YAML configs (config_adult.yaml) to test modularity, and compared models results. |
+| **10** | Missing Values & Deployment | Advanced model-based imputation strategies (KNNImputer, IterativeImputer / MICE, and missForest), feature-first scaling order, automated pipeline serialization via joblib (models/model.joblib), and a new terminal prediction script (predict.py) for evaluating unseen data. |
 
 ---
 
@@ -140,6 +141,28 @@ To test pipeline modularity and robustness, migration from the COMPAS recidivism
 
 ### Conclusion
 Gradient boosting and XGBoost outperformed all other models, easily beating the baseline (ROC-AUC = 0.500). The highest performance came from XGBoost with feature selection, reaching a validation ROC-AUC of 0.911 (0.014). Full hyperparameter tuning yielded a nearly identical 0.909, confirming that default parameters with noise reduction were already optimal. Using VoteSelector successfully dropped noise from the 25 anonymized columns (v01–v25), keeping only 8 key features: age, education_num, capital_gain, capital_loss, hours_per_week, marital_status, occupation, and relationship.
+
+## Missing Values
+
+To ensure the pipeline remains robust when processing unseen records, missing values are addressed before modeling without introducing data leakage. Categorical gaps are populated with the most frequent category. For numeric attributes, `preprocessing.imputation.numeric_strategy` allows for flexible imputation configurations:
+
+| Strategy | Imputation Mechanism | Operational Details |
+| :--- | :--- | :--- |
+| `median` / `mean` | Replaces missing values using training partition medians or means | High-performance baseline approach |
+| `knn` | Imputes values using the average of the $k$-nearest neighbor instances | Requires prior scaling (handled upstream within the pipeline) |
+| `iterative` | Estimates values via iterative multivariate linear regression across features (MICE) | Produces a single completed dataset over multiple iterations |
+| `random_forest` | Predicts missing values using dedicated random forest regressors per feature (missForest) | Captures complex non-linear feature interactions at a higher computational cost |
+
+All imputers are strictly fitted within cross-validation folds using feature columns only, avoiding target leakage and ensuring identical behavior during production inference. Binary indicator flags (`_was_missing`) are automatically appended via `mnar_indicator_sources` to preserve informative missingness patterns.
+
+## Predicting New Data 
+
+At the conclusion of a training run, `main.py` serializes the complete fitted scikit-learn `Pipeline`, including learned scalers, target encoders, feature selectors, and trained estimators to `models/model.joblib` as specified by `output.model_path` in `config.yaml`.
+
+Unseen datasets can be evaluated directly from the command line without requiring target labels:
+```bash
+python predict.py data/compas_new_people.csv predictions.csv
+```
 
 ## Environment setup
 
