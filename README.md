@@ -59,6 +59,7 @@ This table is updated after each practical class, so you can always see what cha
 | **8** | XGBoost & Feature Selection | Integrated XGBoost with its internal split brakes (gamma, reg_alpha, etc.), built a leakage-proof VoteSelector pipeline step with temporary caching for fast tuning, and evaluated feature reduction against noise. |
 | **9** | Generalizing Beyond COMPAS (Adult Income) | Refactored data loading and fairness audits to be completely dataset-agnostic, stripping out hardcoded variables. Introduced separate YAML configs (config_adult.yaml) to test modularity, and compared models results. |
 | **10** | Missing Values & Deployment | Advanced model-based imputation strategies (KNNImputer, IterativeImputer / MICE, and missForest), feature-first scaling order, automated pipeline serialization via joblib (models/model.joblib), and a new terminal prediction script (predict.py) for evaluating unseen data. |
+| **11** | Outliers & Anomaly Scoring | Added `AnomalyScore` transformer, integrated it into `build_pipeline()` after preprocessing, configured it via `anomaly` in `config.yaml`, and logged the anomaly method in runs and scoreboards. |
 
 ---
 
@@ -154,6 +155,10 @@ To ensure the pipeline remains robust when processing unseen records, missing va
 | `random_forest` | Predicts missing values using dedicated random forest regressors per feature (missForest) | Captures complex non-linear feature interactions at a higher computational cost |
 
 All imputers are strictly fitted within cross-validation folds using feature columns only, avoiding target leakage and ensuring identical behavior during production inference. Binary indicator flags (`_was_missing`) are automatically appended via `mnar_indicator_sources` to preserve informative missingness patterns.
+
+### Anomaly Scoring
+
+Before running the detectors, I expected that high anomaly scores might capture unusual offense histories and slightly help prediction, while outliers would reoffend at a higher rate. Across default logistic_regression runs, ROC-AUC was essentially unchanged across `none` (**0.723 ± 0.013**), `isolation_forest` (**0.723 ± 0.013**), and `lof` (**0.722 ± 0.012**). Looking at the top 5% most anomalous development rows (`n = 289` vs. `n = 5,482` for the rest), reoffending rates were **75.4% vs. 43.5%** for Isolation Forest and **56.4% vs. 44.5%** for LOF. While Isolation Forest's top 5% has a substantially higher reoffending rate than the rest, appending `anomaly_score` did not improve significantly CV ROC-AUC. Logistic regression already captures the underlying feature patterns driving risk, whereas LOF primarily reflects local neighborhood density differences rather than a strong shift in recidivism.
 
 ## Predicting New Data 
 

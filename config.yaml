@@ -136,6 +136,11 @@ feature_selection:
   search_space:
     select__min_votes: {type: int, low: 1, high: 3}
 
+anomaly:
+  "method": "lof"     # none | isolation_forest | lof
+  "n_neighbors": 20                # lof: larger than the largest group of identical rows
+  "random_state": 42               # isolation_forest
+
 output:
   results_dir: "results"
   scoreboard: "results/runs.csv"
